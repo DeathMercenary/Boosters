@@ -1,0 +1,25 @@
+name: Boosters
+main: com.prismforge.boosters.Boosters
+version: 1.0
+api-version: 1.13
+author: PrismForge
+description: Booster plugin with dynamic skill tipping support.
+
+commands:
+  createboost:
+    description: Create a new booster type
+    permission: boosters.admin
+  givebooster:
+    description: Give a booster to a player
+    permission: boosters.admin
+  boosters:
+    description: View and activate your boosters
+  tip:
+    description: Tip the creator of the active booster
+
+permissions:
+  boosters.admin:
+    description: Permission to create and give boosters
+    default: op
+
+softdepend: [Skills]
