@@ -1,13 +1,13 @@
 boosters:
   xp:
-    display-name: "&aXP Booster"
+    display-name: "§aXP Booster"
     activate-command: "doublexp %player% %strength% %duration%"
     tip:
       - "console: give %tipper% diamond 1"
       - "console: give %creator% emerald 2"
       - "internal: skills.addXp %tipper% 500"
   chest:
-    display-name: "&bChest Loot Booster"
+    display-name: "§bChest Loot Booster"
     activate-command: "chestboost %player% %strength% %duration%"
     tip:
       - "console: eco give %tipper% 500"

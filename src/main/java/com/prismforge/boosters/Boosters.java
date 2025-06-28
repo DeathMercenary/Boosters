@@ -1,24 +1,21 @@
 package com.prismforge.boosters;
 
-import com.prismforge.boosters.api.BoosterAPI;
-import com.prismforge.boosters.booster.BoosterManager;
-import com.prismforge.boosters.commands.BoostersCommand;
-import com.prismforge.boosters.commands.CreateBoostCommand;
-import com.prismforge.boosters.commands.GiveBoosterCommand;
-import com.prismforge.boosters.listeners.InventoryClickListener;
-import com.prismforge.boosters.players.PlayerBoosterManager;
+import com.prismforge.boosters.command.BoosterCommand;
+import com.prismforge.boosters.gui.BoosterGUI;
+import com.prismforge.boosters.manager.BoosterManager;
+import com.prismforge.boosters.manager.ConfigManager;
+import com.prismforge.boosters.manager.PlayerBoosterManager;
+import com.prismforge.boosters.task.BoosterTickTask;
+import com.prismforge.boosters.util.BossBarUtil;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-/**
- * Main class for the Boosters plugin.
- * Handles plugin startup and shutdown logic.
- */
 public class Boosters extends JavaPlugin {
 
     private static Boosters instance;
     private BoosterManager boosterManager;
-    private PlayerBoosterManager playerBoosterManager;
-    private BoosterAPI boosterAPI;
+    private ConfigManager configManager;
 
     @Override
     public void onEnable() {
@@ -26,55 +23,68 @@ public class Boosters extends JavaPlugin {
 
         saveDefaultConfig();
 
-        boosterManager = new BoosterManager(this);
-        playerBoosterManager = new PlayerBoosterManager(this);
-        boosterAPI = new BoosterAPI(this);
+        this.boosterManager = new BoosterManager(this);
+        this.configManager = new ConfigManager(this);
+        this.playerBoosterManager = new PlayerBoosterManager(this);
 
-        // Register listeners and commands
-        new InventoryClickListener(this);
-        new CreateBoostCommand(this);
-        new GiveBoosterCommand(this);
-        new BoostersCommand(this); // (Will create this next!)
 
-        getLogger().info("Boosters plugin has been enabled.");
+        configManager.loadBoosters(boosterManager);
+
+        getCommand("booster").setExecutor(new BoosterCommand(this));
+
+        new BoosterTickTask(boosterManager).runTaskTimer(this, 20L, 20L); // every second
+        this.bossBarUtil = new BossBarUtil(this);
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            playerBoosterManager.load(player.getUniqueId());
+        }
+        Bukkit.getPluginManager().registerEvents(new org.bukkit.event.Listener() {
+            @org.bukkit.event.EventHandler
+            public void onJoin(org.bukkit.event.player.PlayerJoinEvent event) {
+                playerBoosterManager.load(event.getPlayer().getUniqueId());
+                bossBarUtil.sharedBar.addPlayer(event.getPlayer());
+            }
+            @org.bukkit.event.EventHandler
+            public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+                playerBoosterManager.unload(event.getPlayer().getUniqueId());
+            }
+        }, this);
+
+        this.boosterGUI = new BoosterGUI(this);
+        boosterManager.loadGlobalBoosters();
+
+
+        getLogger().info("[Boosters] Plugin enabled successfully.");
     }
-
-
     @Override
     public void onDisable() {
-        getLogger().info("Boosters plugin has been disabled.");
-        // Any necessary cleanup here
+        boosterManager.saveGlobalBoosters();
+        bossBarUtil.clearAll();
+        playerBoosterManager.saveAll();
+        getLogger().info("[Boosters] Plugin disabled.");
+    }
+    private BoosterGUI boosterGUI;
+
+    public BoosterGUI getBoosterGUI() {
+        return boosterGUI;
+    }
+    private BossBarUtil bossBarUtil;
+    public BossBarUtil getBossBarUtil() {
+        return bossBarUtil;
     }
 
-    /**
-     * Get the Boosters plugin instance.
-     * @return instance
-     */
-    public static Boosters getInstance() {
-        return instance;
-    }
 
-    /**
-     * Get the BoosterManager.
-     * @return boosterManager
-     */
-    public BoosterManager getBoosterManager() {
-        return boosterManager;
-    }
+    private PlayerBoosterManager playerBoosterManager;
 
-    /**
-     * Get the PlayerBoosterManager.
-     * @return playerBoosterManager
-     */
     public PlayerBoosterManager getPlayerBoosterManager() {
         return playerBoosterManager;
     }
 
-    /**
-     * Get the BoosterAPI.
-     * @return boosterAPI
-     */
-    public BoosterAPI getBoosterAPI() {
-        return boosterAPI;
+    public static Boosters getInstance() {
+        return instance;
+    }
+
+    public BoosterManager getBoosterManager() {
+        return boosterManager;
     }
 }

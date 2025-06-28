@@ -1,139 +1,162 @@
 package com.prismforge.boosters.gui;
 
 import com.prismforge.boosters.Boosters;
-import com.prismforge.boosters.booster.Booster;
-import com.prismforge.boosters.booster.ActiveBooster;
-import com.prismforge.boosters.booster.BoosterType;
+import com.prismforge.boosters.data.Booster;
+import com.prismforge.boosters.data.BoosterQueue;
+import com.prismforge.boosters.data.PlayerBooster;
+import com.prismforge.boosters.manager.PlayerBoosterManager;
+import com.prismforge.boosters.util.TimeUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
-import org.bukkit.Sound;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
-/**
- * Handles the Boosters GUI.
- */
-public class BoosterGUI {
-
-    private static final DecimalFormat decimalFormat = new DecimalFormat("#.##");
-    private static final String INVENTORY_TITLE = "§b§lYour Boosters";
+public class BoosterGUI implements Listener {
 
     private final Boosters plugin;
+    private final PlayerBoosterManager manager;
 
     public BoosterGUI(Boosters plugin) {
         this.plugin = plugin;
+        this.manager = plugin.getPlayerBoosterManager();
+        Bukkit.getPluginManager().registerEvents(this, plugin);
     }
 
-    /**
-     * Opens the booster GUI for a player.
-     */
     public void open(Player player) {
-        List<Booster> boosters = plugin.getPlayerBoosterManager().getPlayerBoosters(player.getUniqueId());
-        int size = Math.max(27, ((boosters.size() / 9) + 1) * 9);
-        Inventory inv = Bukkit.createInventory(null, size, INVENTORY_TITLE);
+        UUID uuid = player.getUniqueId();
+        List<PlayerBooster> boosters = manager.getBoosters(uuid);
+
+        int size = ((boosters.size() / 9) + 1) * 9;
+        Inventory inv = Bukkit.createInventory(null, size, ChatColor.BLUE + "Your Boosters");
 
         for (int i = 0; i < boosters.size(); i++) {
-            Booster booster = boosters.get(i);
-            BoosterType type = plugin.getBoosterManager().getBoosterType(booster.getType());
-
-            ItemStack item = new ItemStack(Material.EXP_BOTTLE); // Simple XP bottle for now
+            PlayerBooster booster = boosters.get(i);
+            ItemStack item = new ItemStack(Material.EMERALD); // or custom type per booster
             ItemMeta meta = item.getItemMeta();
-            meta.setDisplayName("§b" + decimalFormat.format(booster.getStrength()) + "x " + type.getDisplayName());
-            List<String> lore = new ArrayList<>();
-            lore.add("§7Duration: §f" + booster.getDurationMinutes() + " minutes");
-            lore.add("§e§lClick to activate!");
-            meta.setLore(lore);
+            meta.setDisplayName(ChatColor.GOLD + booster.getType() + " Booster");
+            meta.setLore(java.util.Arrays.asList(
+                    ChatColor.YELLOW + "Strength: " + booster.getStrength() + "x",
+                    ChatColor.YELLOW + "Duration: " + TimeUtil.formatSeconds(booster.getDuration()),
+                    ChatColor.GREEN + "Click to activate!"
+            ));
             item.setItemMeta(meta);
+            inv.setItem(i, item);
+        }
 
+        player.openInventory(inv);
+    }
+    public void openMainMenu(Player player) {
+        Inventory inv = Bukkit.createInventory(null, 9, ChatColor.BLUE + "Booster Menu");
+
+        ItemStack personal = new ItemStack(Material.CHEST);
+        ItemMeta pMeta = personal.getItemMeta();
+        pMeta.setDisplayName(ChatColor.GOLD + "Your Boosters");
+        pMeta.setLore(Collections.singletonList(ChatColor.GRAY + "Click to view your boosters."));
+        personal.setItemMeta(pMeta);
+        inv.setItem(3, personal);
+
+        ItemStack queued = new ItemStack(Material.WATCH);
+        ItemMeta qMeta = queued.getItemMeta();
+        qMeta.setDisplayName(ChatColor.AQUA + "Queued Boosters");
+        qMeta.setLore(Collections.singletonList(ChatColor.GRAY + "Click to view upcoming global boosters."));
+        queued.setItemMeta(qMeta);
+        inv.setItem(5, queued);
+
+        player.openInventory(inv);
+    }
+
+    @EventHandler
+    public void onClick(InventoryClickEvent event) {
+        if (event.getView().getTitle() == null) return;
+        Player player = (Player) event.getWhoClicked();
+
+        String title = event.getView().getTitle();
+
+        if(title.toLowerCase().contains("booster")) event.setCancelled(true);
+        if (title.contains("Booster Menu")) {
+            ItemStack clicked = event.getCurrentItem();
+            if (clicked == null || !clicked.hasItemMeta()) return;
+
+            String name = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+            if (name.equalsIgnoreCase("Your Boosters")) {
+                openPersonal(player);
+            } else if (name.equalsIgnoreCase("Queued Boosters")) {
+                openQueued(player);
+            }
+            return;
+        }
+
+        if (title.contains("Your Boosters")) {
+            List<PlayerBooster> boosters = manager.getBoosters(player.getUniqueId());
+            int slot = event.getRawSlot();
+            if (slot < 0 || slot >= boosters.size()) return;
+
+            PlayerBooster clickedBooster = boosters.get(slot);
+            plugin.getBoosterManager().addBooster(clickedBooster.getType(), clickedBooster.getStrength(), clickedBooster.getDuration());
+            manager.removeBooster(player.getUniqueId(), clickedBooster);
+            Bukkit.broadcastMessage(ChatColor.GOLD + "[Boosters] " + ChatColor.YELLOW + player.getName() +
+                    " activated a " + clickedBooster.getStrength() + "x " + clickedBooster.getType() +
+                    " booster for " + com.prismforge.boosters.util.TimeUtil.formatSeconds(clickedBooster.getDuration()) + "!");
+            player.closeInventory();
+        }
+    }
+
+    public void openPersonal(Player player) {
+        UUID uuid = player.getUniqueId();
+        List<PlayerBooster> boosters = manager.getBoosters(uuid);
+        int size = Math.max(9, ((boosters.size() / 9) + 1) * 9);
+        Inventory inv = Bukkit.createInventory(null, size, ChatColor.BLUE + "Your Boosters");
+
+        for (int i = 0; i < boosters.size(); i++) {
+            PlayerBooster booster = boosters.get(i);
+            ItemStack item = new ItemStack(Material.EMERALD);
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(ChatColor.GOLD + booster.getType() + " Booster");
+            meta.setLore(Arrays.asList(
+                    ChatColor.YELLOW + "Strength: " + booster.getStrength() + "x",
+                    ChatColor.YELLOW + "Duration: " + com.prismforge.boosters.util.TimeUtil.formatSeconds(booster.getDuration()),
+                    ChatColor.GREEN + "Click to activate!"
+            ));
+            item.setItemMeta(meta);
+            inv.setItem(i, item);
+        }
+        player.openInventory(inv);
+    }
+
+    public void openQueued(Player player) {
+        Collection<BoosterQueue> queues = plugin.getBoosterManager().getActiveBoosters().values();
+        List<Booster> allQueued = new ArrayList<Booster>();
+        for (BoosterQueue q : queues) {
+            if (q.getCurrent() != null) allQueued.add(q.getCurrent());
+            allQueued.addAll(q.getQueue());
+        }
+
+        int size = Math.max(9, ((allQueued.size() / 9) + 1) * 9);
+        Inventory inv = Bukkit.createInventory(null, size, ChatColor.BLUE + "Queued Boosters");
+
+        for (int i = 0; i < allQueued.size(); i++) {
+            Booster booster = allQueued.get(i);
+            ItemStack item = new ItemStack(Material.WATCH);
+            ItemMeta meta = item.getItemMeta();
+            meta.setDisplayName(ChatColor.AQUA + booster.getType() + " Booster");
+            meta.setLore(Arrays.asList(
+                    ChatColor.YELLOW + "Strength: " + booster.getStrength() + "x",
+                    ChatColor.YELLOW + "Time Remaining: " + com.prismforge.boosters.util.TimeUtil.formatSeconds(booster.getDurationSeconds())
+            ));
+            item.setItemMeta(meta);
             inv.setItem(i, item);
         }
 
         player.openInventory(inv);
     }
 
-    /**
-     * Handles inventory clicks inside the boosters GUI.
-     */
-    public void handleClick(InventoryClickEvent event) {
-        if (event.getView().getTitle().equals(INVENTORY_TITLE)) {
-            event.setCancelled(true);
-            if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return;
 
-            Player player = (Player) event.getWhoClicked();
-            ItemStack item = event.getCurrentItem();
-            ItemMeta meta = item.getItemMeta();
-            if (meta == null || meta.getDisplayName() == null) return;
-
-            // Parse booster info
-            String displayName = meta.getDisplayName();
-            String[] parts = displayName.split("x ");
-            if (parts.length != 2) {
-                player.sendMessage("§cInvalid booster.");
-                return;
-            }
-
-            double strength;
-            String typeName;
-
-            try {
-                strength = Double.parseDouble(parts[0].replace("§b", ""));
-                typeName = parts[1].replace("§r", "").replace(" Booster", "").toLowerCase();
-            } catch (Exception e) {
-                player.sendMessage("§cCould not parse booster information.");
-                return;
-            }
-
-            List<Booster> playerBoosters = plugin.getPlayerBoosterManager().getPlayerBoosters(player.getUniqueId());
-            Booster selectedBooster = null;
-            for (Booster booster : playerBoosters) {
-                if (booster.getType().equalsIgnoreCase(typeName) && booster.getStrength() == strength) {
-                    selectedBooster = booster;
-                    break;
-                }
-            }
-
-            if (selectedBooster == null) {
-                player.sendMessage("§cYou don't have that booster.");
-                return;
-            }
-
-            // Activate it
-            activateBooster(player, selectedBooster);
-            player.closeInventory();
-        }
-    }
-
-    /**
-     * Activates a booster and removes it from the player's inventory.
-     */
-    private void activateBooster(Player player, Booster booster) {
-        plugin.getPlayerBoosterManager().removeBooster(player.getUniqueId(), booster);
-
-        // Activate
-        plugin.getBoosterManager().getActiveBoosterManager().activateBooster(
-                new ActiveBooster(player.getUniqueId(), booster.getType(), booster.getStrength(), booster.getDurationMinutes())
-        );
-
-        // Run the configured activation command
-        BoosterType type = plugin.getBoosterManager().getBoosterType(booster.getType());
-        if (type != null) {
-            String command = type.getActivateCommand()
-                    .replace("%player%", player.getName())
-                    .replace("%strength%", String.valueOf(booster.getStrength()))
-                    .replace("%duration%", String.valueOf(booster.getDurationMinutes()));
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-        }
-
-        player.sendMessage("§aActivated §b" + booster.getStrength() + "x " + booster.getType() + " §abooster for §f" + booster.getDurationMinutes() + " minutes!");
-        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
-    }
 }
