@@ -1,12 +1,15 @@
 name: Boosters
-version: 1.0
+version: 26.2-dev-SNAPSHOT
 main: com.prismforge.boosters.Boosters
+api-version: '26.2'
 description: A flexible, scalable booster plugin for Minecraft servers.
 author: Ivary
-
 commands:
   booster:
     description: Manage and activate boosters
     usage: /booster
-    aliases: [boosters, boost, boosts]
+    aliases:
+    - boosters
+    - boost
+    - boosts
     permission: boosters.use

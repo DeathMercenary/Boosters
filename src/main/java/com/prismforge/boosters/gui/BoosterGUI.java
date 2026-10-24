@@ -63,7 +63,7 @@ public class BoosterGUI implements Listener {
         personal.setItemMeta(pMeta);
         inv.setItem(3, personal);
 
-        ItemStack queued = new ItemStack(Material.WATCH);
+        ItemStack queued = new ItemStack(Material.CLOCK);
         ItemMeta qMeta = queued.getItemMeta();
         qMeta.setDisplayName(ChatColor.AQUA + "Queued Boosters");
         qMeta.setLore(Collections.singletonList(ChatColor.GRAY + "Click to view upcoming global boosters."));
@@ -144,7 +144,7 @@ public class BoosterGUI implements Listener {
 
         for (int i = 0; i < allQueued.size(); i++) {
             Booster booster = allQueued.get(i);
-            ItemStack item = new ItemStack(Material.WATCH);
+            ItemStack item = new ItemStack(Material.CLOCK);
             ItemMeta meta = item.getItemMeta();
             meta.setDisplayName(ChatColor.AQUA + booster.getType() + " Booster");
             meta.setLore(Arrays.asList(
